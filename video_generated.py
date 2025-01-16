@@ -1,52 +1,106 @@
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
-from moviepy.config import change_settings
+import cv2
+import textwrap
 
-class VideoEditor:
-    def __init__(self, imagemagick_path):
+class VideoTextOverlay:
+    def __init__(self, video_path, output_path, font_scale=1, text_color=(255, 255, 255), font_thickness=2, shadow_color=(0, 0, 0), shadow_offset=(2, 2)):
         """
-        Initialize the VideoEditor class and configure ImageMagick binary path.
+        Initialize the VideoTextOverlay class.
 
-        :param imagemagick_path: Path to the ImageMagick binary
+        :param video_path: Path to the input video
+        :param output_path: Path to save the output video
+        :param font_scale: Scale of the text font
+        :param text_color: Color of the text (BGR format)
+        :param font_thickness: Thickness of the text font
+        :param shadow_color: Color of the shadow (BGR format)
+        :param shadow_offset: Offset of the shadow (x, y)
         """
-        change_settings({"IMAGEMAGICK_BINARY": imagemagick_path})
+        self.video_path = video_path
+        self.output_path = output_path
+        self.font_scale = font_scale
+        self.text_color = text_color
+        self.font_thickness = font_thickness
+        self.shadow_color = shadow_color
+        self.shadow_offset = shadow_offset
 
-    def add_text_to_video(self, video_path, output_path, text, fontsize=50, text_color='white', bg_color='transparent', position='center', duration=10, words_per_line=7, shadow_offset=(1, 1), shadow_color='green'):
+        # Open the video file
+        self.cap = cv2.VideoCapture(video_path)
+
+        # Get video properties
+        self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
+        self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        # Create a VideoWriter object
+        self.out = cv2.VideoWriter(
+            output_path, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (self.frame_width, self.frame_height)
+        )
+
+    def _wrap_text(self, text):
         """
-        Add a text overlay to a video and save the resulting video. The text is broken into lines after a specified number of words.
+        Wrap text to fit within the video frame width.
 
-        :param video_path: Path to the input video file
-        :param output_path: Path to save the output video file
-        :param text: The text to overlay on the video
-        :param fontsize: Font size of the text
-        :param text_color: Color of the text
-        :param bg_color: Background color of the text
-        :param position: Position of the text on the video
-        :param duration: Duration for which the text appears
-        :param words_per_line: Number of words per line before breaking to a new line
+        :param text: The text to wrap
+        :return: A list of wrapped text lines
         """
-        try:
-            # Split the text into chunks of words
-            words = text.split()
-            lines = [' '.join(words[i:i + words_per_line]) for i in range(0, len(words), words_per_line)]
-            formatted_text = '\n'.join(lines)  # Join the lines with newlines
+        # max_line_width = int(self.frame_width / (self.font_scale * 10))
+        return textwrap.wrap(text, width=40)
 
-            # Load the video
-            video = VideoFileClip(video_path)
+    def _calculate_text_position(self, wrapped_text):
+        """
+        Calculate the starting y-coordinate for the text block.
 
-            # Create a text clip with the formatted text
-            shadow_clip = TextClip(formatted_text, fontsize=fontsize, color=shadow_color, bg_color=bg_color, size=video.size)
-            shadow_clip = shadow_clip.set_position((position[0] + shadow_offset[0], position[1] + shadow_offset[1])).set_duration(duration)
+        :param wrapped_text: A list of wrapped text lines
+        :return: Starting y-coordinate for the text block
+        """
+        text_height = cv2.getTextSize("Test", cv2.FONT_HERSHEY_SIMPLEX, self.font_scale, self.font_thickness)[0][1]
+        line_spacing = 9
+        text_block_height = len(wrapped_text) * (text_height + line_spacing) - line_spacing
+        return max(self.frame_height - text_block_height - 20, 20)  # Bottom margin of 20px
 
-            # Create the main text clip
-            text_clip = TextClip(formatted_text, fontsize=fontsize, color=text_color, bg_color=bg_color, size=video.size)
-            text_clip = text_clip.set_position(position).set_duration(duration)
+    def add_text(self, text, duration=10):
+        """
+        Add text with shadow to the bottom center of the video.
 
-            # Combine the shadow and text clips with the video
-            video_with_text = CompositeVideoClip([video, shadow_clip, text_clip])
+        :param text: The text to overlay
+        :param duration: Duration for which the text appears (in seconds)
+        """
+        wrapped_text = self._wrap_text(text)
+        y_start = self._calculate_text_position(wrapped_text)
+        text_frames = int(duration * self.fps)
 
-            # Write the output video file
-            video_with_text.write_videofile(output_path, fps=video.fps)
+        frame_count = 0
 
-            print(f"Video saved to {output_path}")
-        except Exception as e:
-            print(f"An error occurred: {e}")
+        while self.cap.isOpened():
+            ret, frame = self.cap.read()
+            if not ret:
+                break
+
+            frame_count += 1
+
+            if frame_count <= text_frames:
+                y = y_start
+                for line in wrapped_text:
+                    text_size = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, self.font_scale, self.font_thickness)[0]
+                    x = (self.frame_width - text_size[0]) // 2
+
+                    # Draw shadow
+                    cv2.putText(
+                        frame, line, 
+                        (x + self.shadow_offset[0], y + self.shadow_offset[1]), 
+                        cv2.FONT_HERSHEY_SIMPLEX, self.font_scale, self.shadow_color, self.font_thickness, cv2.LINE_AA
+                    )
+
+                    # Draw main text
+                    cv2.putText(
+                        frame, line, 
+                        (x, y), 
+                        cv2.FONT_HERSHEY_SIMPLEX, self.font_scale, self.text_color, self.font_thickness, cv2.LINE_AA
+                    )
+
+                    y += text_size[1] + 9
+
+            self.out.write(frame)
+
+        self.cap.release()
+        self.out.release()

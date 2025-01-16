@@ -11,8 +11,8 @@ class TextGenerated:
         self.client = Groq(api_key=api_key)
         self.prompt_template = (
             """
-            Anda adalah pakar pemasaran yang membantu klien di industri keuangan. 
-            Berdasarkan pola transaksi yang diberikan, buatlah ringkasan yang ramah dan menarik tentang apa transaksi yang sering dia lakukan yang ditujukan langsung kepada pelanggan.
+            Kamu adalah pakar pemasaran yang membantu klien di industri keuangan. 
+            Berdasarkan pola merchant yang diberikan, buatlah ringkasan yang ramah dan menarik tentang tempat-tempat seperti apa transaksi yang sering dia lakukan yang ditujukan langsung kepada pelanggan.
             Mulailah respons dengan \"Haloo,\" dan jelaskan kebiasaan transaksi mereka dengan nada percakapan yang relevan pakai sapaan 'kamu'.
             Tulis hingga 2 kalimat pendek agar menarik dan mudah dipahami.
 
