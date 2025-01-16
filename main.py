@@ -49,7 +49,7 @@ if st.sidebar.button("Generate Video"):
             # Step 3: Create Video with Text
             st.write("Creating video with overlay text...")
             video_editor = VideoEditor(imagemagick_path="/opt/homebrew/bin/convert")
-            output_path = f"output_video_{cif_input}.mp4"  # Use CIF to name the output file
+            output_path = f"/Users/muthia_ap/Documents/RAG/video-project/output/output_video_{cif_input}.mp4"  # Use CIF to name the output file
             video_editor.add_text_to_video(
                 video_path=video_path,
                 output_path=output_path,
